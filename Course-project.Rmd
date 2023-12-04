@@ -1,0 +1,101 @@
+---
+title: "Practical machine learning project"
+author: "as"
+date: "2023-11-25"
+output: html_document
+---
+
+```{r setup, include=FALSE} 
+knitr::opts_chunk$set(warning = FALSE, message = FALSE) 
+```
+
+## Predicting Quality of Exercise Using Personal Activity Devices
+
+Through devices such as *Nike FuelBand*, *Fitbit* and *Jawbone Up* now we can collect large amount of data about personal activity. People regularly measure how **much** of a particular activity they do, but the information about **how well they do it** is missing.
+
+Six participants were asked to make the barbell lifts correctly and incorrectly in 5 different ways. The goal of this project will be to use data from accelerometers on the belt, forearm, arm, and dumbell of these participants to predict the manner in which they did the exercise.
+
+The data for this project can be found here : <http://groupware.les.inf.puc-rio.br/har>
+
+## Loading the data
+
+Since we're only interested in the accelerometer data, let's load the data and only include the accelerometer data, the names of the participants, and the 5 ways in which they did the barbell lift exercises (classe). We'll also make sure there are no missing values.
+
+```{r}
+library(tidyverse)
+library(caret)
+
+data <- read.csv(file.choose(),header = TRUE) ##choose pml-training .csv file from the File Explorer
+
+data_new <- data %>% select(user_name, contains("accel"), classe) %>% select(!contains("var"))
+```
+
+## Using cross validation
+
+We will partition the training dataset into a training (75% of the original training set) and testing dataset to be able to evaluate the model after we build it.
+
+```{r}
+
+set.seed(12345)
+
+inTrain = createDataPartition(data_new$classe, p = 0.75, list = FALSE)
+
+training = data_new[ inTrain,]
+
+testing = data_new[-inTrain,]
+```
+```{r}
+dim(training) ; dim(testing)
+```
+
+## Building the model
+
+We have at least 18 predictors which may not all be useful in our model. We can do a principal component analysis to further reduce our predictors.
+
+```{r}
+
+library(caret)
+
+princo <- preProcess(training, method="pca", thresh=0.8)
+
+trainingpc <- predict(princo, training)
+summary(trainingpc)
+
+```
+
+There are 6 principal components now so let's build our model.
+
+I decided to use a Bayesian generalized linear model for these data because of the speed of computation.
+
+```{r}
+start.time <- Sys.time()
+library(arm)
+
+set.seed(12345)
+mod1 <- train(classe ~ ., method="bayesglm", data=trainingpc)
+
+end.time <- Sys.time()
+time.taken <- end.time - start.time
+time.taken
+
+mod1$finalModel
+
+```
+
+## Testing the model
+
+We will now run our model on the testing dataset.
+
+```{r}
+
+new_test <- predict(princo, testing)
+
+pred1 <- predict(mod1, new_test)
+
+conmat <- confusionMatrix(as.factor(testing$classe), pred1)
+
+conmat
+
+```
+
+The accuracy of this model is just 30%, meaning that there is a better model than the Bayesian Generalized Linear Model.
